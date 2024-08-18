@@ -1,0 +1,8 @@
+Website = "NOTHING"
+
+[Details]
+  Icon = "Icon.png"
+  Name = "SwipeTabs Testapp"
+  ID = "biehdc.fynedev.swipetabs"
+  Version = "0.1"
+  Build = 5
