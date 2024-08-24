@@ -1,110 +1,117 @@
 package main
 
 import (
+	"fmt"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 
 	"biehdc.fynedev.swipetabs/swipetabs"
 )
 
+// good enough for quick dialog popping on mobile instead of printf
+var window fyne.Window
+
 func main() {
 	fyne.EnsureCustom()
 	app := app.New()
-	window := app.NewWindow("Swipetabs")
+	window = app.NewWindow("Swipetabs - Fake Messenger")
 	window.SetPadded(false)
 	window.Resize(fyne.NewSize(500, 600))
 	window.CenterOnScreen()
 
-	tabs2 := container.NewAppTabs2(true,
-		container.NewTabItem("1", widget.NewLabel("item 1")),
-		container.NewTabItem("2", randomstuff()),
-		container.NewTabItem("3", subswiper()),
-	)
-	tabs2.SelectIndex(2)
-
-	tabs := swipetabs.NewSwipeTabs(tabs2, func(d swipetabs.Direction) {
-		switch d {
-		case swipetabs.Previous:
-			tabs2.SelectIndex(tabs2.SelectedIndex() - 1)
-		case swipetabs.Next:
-			tabs2.SelectIndex(tabs2.SelectedIndex() + 1)
-		default:
-			panic("should not happen")
-		}
-	})
-
-	window.SetContent(tabs)
+	window.SetContent(makeChannelList())
 	window.ShowAndRun()
 }
 
-func randomstuff() fyne.CanvasObject {
-	return container.NewVBox(
-		widget.NewLabel("2 yikes"),
-		widget.NewButton("a button", func() {}),
-		widget.NewActivity(),
-		widget.NewEntry(),
-		widget.NewSlider(5, 15),
-	)
-}
+func makeChannelList() fyne.CanvasObject {
+	var channels *container.Scroll
+	disp := container.NewStack()
 
-func lb(s string) fyne.CanvasObject {
-	return widget.NewLabel(s)
-}
-
-func subswiper() fyne.CanvasObject {
-	gw := container.NewGridWithColumns(3,
-		lb("1"), lb("2"), lb("3"),
-		//
-		tabberWithSwipe(true, lb("with swipe 1"), lb("yyy"), lb("zzz")),
-		tabberWithSwipe(false, lb("with swipe, not hidden"), lb("ccc"), lb("ggg")),
-		tabberWithSwipe(true, lb("with swipe 2"), lb("ooo"), lb("ppp")),
-		//
-		lb("7"), tabber(lb("no swipe"), lb("mmm"), lb("qqq")), lb("9"),
-	)
-	return gw
-}
-
-func tabberWithSwipe(hide bool, a, b, c fyne.CanvasObject) fyne.CanvasObject {
-	var tabs2 *container.AppTabs
-
-	// for quick demo
-	if hide {
-		tabs2 = container.NewAppTabs2(true,
-			container.NewTabItem("11", a),
-			container.NewTabItem("22", b),
-			container.NewTabItem("33", c),
-		)
-	} else {
-		tabs2 = container.NewAppTabs(
-			container.NewTabItem("11", a),
-			container.NewTabItem("22", b),
-			container.NewTabItem("33", c),
-		)
+	// fixme do we want to make this a push/pull stack maybe?
+	setView := func(co fyne.CanvasObject) {
+		if co != nil {
+			// if the caller wants us to set a new view
+			disp.Objects = []fyne.CanvasObject{co}
+		} else {
+			// or it asks us to reset the view
+			disp.Objects = []fyne.CanvasObject{channels}
+		}
+		disp.Refresh()
 	}
 
-	tabs := swipetabs.NewSwipeTabs(tabs2, func(d swipetabs.Direction) {
+	var channelWidgets []fyne.CanvasObject
+	for i := range 30 {
+		channelWidgets = append(channelWidgets, makeChannelWidget(fmt.Sprintf("Channel %d", i), setView))
+	}
+
+	channels = container.NewVScroll(container.NewVBox(channelWidgets...))
+	setView(nil)
+
+	return disp
+}
+
+func makeChannelWidget(channelname string, setView func(fyne.CanvasObject)) fyne.CanvasObject {
+	messageText := widget.NewLabelWithStyle(channelname, fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+
+	showChannelName := NewTapCard("", "", messageText, func() {
+		resetView := func() { setView(nil) }
+		content := append(
+			[]fyne.CanvasObject{widget.NewButton("Back", resetView)},
+			makeLotsOfFakeMessages(channelname, resetView)...,
+		)
+		setView(container.NewVScroll(container.NewVBox(content...)))
+	})
+
+	actions := container.NewGridWithColumns(3,
+		widget.NewButton("LEAVE", func() { dialog.ShowInformation("LEAVE", fmt.Sprintf("leave for %s\n", channelname), window) }),
+		widget.NewButton("ARCHIVE", func() { dialog.ShowInformation("ARCHIVE", fmt.Sprintf("archive for %s\n", channelname), window) }),
+		widget.NewButton("OTHER", func() { dialog.ShowInformation("OTHER", fmt.Sprintf("other for %s\n", channelname), window) }),
+	)
+
+	channelView := container.NewStack(showChannelName) //default
+
+	showChannelActions := NewTapCard("", "", container.NewGridWithColumns(2, messageText, actions), func() {
+		channelView.Objects = []fyne.CanvasObject{showChannelName}
+		channelView.Refresh()
+	})
+
+	return swipetabs.NewSwipeTabs(channelView, func(d swipetabs.Direction) {
 		switch d {
 		case swipetabs.Previous:
-			tabs2.SelectIndex(tabs2.SelectedIndex() - 1)
+			channelView.Objects = []fyne.CanvasObject{showChannelName}
+			channelView.Refresh()
 		case swipetabs.Next:
-			tabs2.SelectIndex(tabs2.SelectedIndex() + 1)
+			channelView.Objects = []fyne.CanvasObject{showChannelActions}
+			channelView.Refresh()
 		default:
 			panic("should not happen")
 		}
 	})
-
-	return tabs
 }
 
-func tabber(a, b, c fyne.CanvasObject) fyne.CanvasObject {
-	tabs := container.NewAppTabs(
-		container.NewTabItem("T1", a),
-		container.NewTabItem("T2", b),
-		container.NewTabItem("T3", c),
-	)
-	tabs.SetTabLocation(container.TabLocationTop)
+func makeLotsOfFakeMessages(s string, resetView func()) []fyne.CanvasObject {
+	var obj []fyne.CanvasObject
 
-	return tabs
+	for i := range 100 {
+		w := widget.NewLabel(fmt.Sprintf("%s fake msg nr %d", s, i))
+
+		handler := swipetabs.NewSwipeTabs(w, func(d swipetabs.Direction) {
+			switch d {
+			case swipetabs.Previous:
+				resetView()
+			case swipetabs.Next:
+				dialog.ShowInformation("DELTE MESSAGE", fmt.Sprintf("delete invoked on %d\n", i), window)
+			default:
+				panic("should not happen ether")
+			}
+		})
+
+		obj = append(obj, handler)
+	}
+
+	return obj
 }

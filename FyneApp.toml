@@ -4,5 +4,5 @@ Website = "NOTHING"
   Icon = "Icon.png"
   Name = "SwipeTabs Testapp"
   ID = "biehdc.fynedev.swipetabs"
-  Version = "0.1"
-  Build = 5
+  Version = "0.2"
+  Build = 1
